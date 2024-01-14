@@ -1,131 +1,141 @@
-<script lang="ts" setup>
-import type {Project} from "~/types";
-import type {Ref} from "vue";
+<script setup lang="ts">
+import {z} from "zod";
+import {useUser} from "~/store/user";
+import type {FormSubmitEvent} from "#ui/types";
 
-const {apiUrl} = useRuntimeConfig().public;
-const {data: projects, refresh}: {data: Ref<Project[]>} = await useFetch('/projects', {baseURL: apiUrl})
 
-const editingProjectId = ref(0);
-const addingProject = ref(false);
-const newProjectName = ref("");
-
-async function updateProject(project: Project){
-  await $fetch(`/projects/${project.id}`, {
-    method: 'PUT',
-    baseURL: apiUrl,
-    body: {
-      name: project.name
+definePageMeta({
+  middleware: async () => {
+    const userStore = useUser();
+    if(userStore.user){
+      return navigateTo('/spaces')
     }
-  });
 
-  await refresh();
-  editingProjectId.value = 0;
-}
-
-async function createProject(){
-  if(!newProjectName.value.trim()){
-    return;
+    if(userStore.token){
+      try {
+        await userStore.loadUser()
+        if(userStore.user){
+          return navigateTo('/spaces')
+        }
+      } catch {
+        // pass
+        console.log('unable to login')
+      }
+    }
   }
+})
 
-  await $fetch('/projects', {
-    method: 'POST',
-    baseURL: apiUrl,
-    body: {
-      name: newProjectName.value.trim()
-    }
-  });
+const userStore = useUser();
 
-  await refresh();
-  newProjectName.value = "";
-  addingProject.value = false;
+const createUserSchema = z.object({
+  name: z.string().min(5, "Name must be longer than 5 characters").max(50, "Name must be shorter than 50 characters"),
+  username: z.string().min(5, "Username must be longer than 5 characters").max(50, "Username must be shorter than 50 characters"),
+  password: z.string().min(5, "Password must be longer than 5 characters").max(50, "Password must be shorter than 50 characters")
+})
+
+const loginUserSchema = z.object({
+  username: z.string().min(5, "Username must be longer than 5 characters"),
+  password: z.string().min(5, "Password must be longer than 5 characters")
+})
+
+type LoginUserSchema = z.infer<typeof loginUserSchema>
+
+const loginUserState = reactive<LoginUserSchema>({
+  username: '',
+  password: ''
+});
+
+function onLoginUser(event: FormSubmitEvent<LoginUserSchema>){
+  userStore.login(event.data.username, event.data.password)
 }
+
+type CreateUserSchema = z.infer<typeof createUserSchema>
+const createUserState = reactive<CreateUserSchema>({
+  name: '',
+  username: '',
+  password: ''
+})
+
+function onCreateUser(event: FormSubmitEvent<CreateUserSchema>){
+  userStore.register(event.data.name, event.data.username, event.data.password)
+}
+
+const tabItems = [
+  {
+    label: 'Login',
+    key: 'login'
+  },
+  {
+    label: 'Register',
+    key: 'register'
+  }
+]
 </script>
+
 <template>
-  <div
-    class="max-w-2xl mx-auto"
+<div class="max-w-md mx-auto">
+  <UTabs
+    :items="tabItems"
   >
-    <div class="flex items-center mb-10 justify-between w-full">
-      <h2 class="text-3xl font-semibold">Projects</h2>
-      <UButton
-        icon="i-heroicons-plus"
-        variant="outline"
-        size="xs"
-        @click="addingProject = !addingProject"
+    <template #item="{item}">
+      <UForm
+          v-if="item.key === 'login'"
+          :schema="loginUserSchema"
+          :state="loginUserState"
+          class="space-y-4"
+          @submit="onLoginUser"
       >
-        Project
-      </UButton>
-    </div>
-    <div
-      class="flex flex-col gap-2"
-    >
-      <div
-        v-if="addingProject"
-        class="flex gap-2 mb-5"
-      >
-        <UInput
-          v-model="newProjectName"
-          placeholder="New project's name"
-          class="w-full"
-        />
+        <UFormGroup label="Username" name="username">
+          <UInput
+              v-model="loginUserState.username"
+          />
+        </UFormGroup>
+        <UFormGroup label="Password" name="password">
+          <UInput
+              v-model="loginUserState.password"
+          />
+        </UFormGroup>
         <UButton
-          variant="outline"
-          @click="createProject()"
+            type="submit"
+            block
+            variant="outline"
+            :disabled="!loginUserSchema.safeParse(loginUserState).success"
         >
-          Create
+          Login!
         </UButton>
-      </div>
-      <div
-        v-for="project in projects"
-        :key="project.id"
-        class="rounded-md bg-slate-700 p-2 text-lg flex items-center"
+      </UForm>
+      <UForm
+        v-if="item.key === 'register'"
+        :schema="createUserSchema"
+        :state="createUserState"
+        class="space-y-4"
+        @submit="onCreateUser"
       >
-        <span class="text-sm text-slate-300 mr-2">
-          #{{project.id}}
-        </span>
-        <UInput
-            v-if="editingProjectId === project.id"
-            v-model="project.name"
-            variant="none"
-            class="border-b border-b-green-500"
-        />
-        <span
-            v-if="editingProjectId !== project.id"
+       <UFormGroup label="Name" name="name">
+         <UInput
+             v-model="createUserState.name"
+         />
+       </UFormGroup>
+        <UFormGroup label="Username" name="username">
+          <UInput
+              v-model="createUserState.username"
+          />
+        </UFormGroup>
+        <UFormGroup label="Password" name="password">
+          <UInput
+              v-model="createUserState.password"
+          />
+        </UFormGroup>
+        <UButton
+          type="submit"
+          block
+          variant="outline"
+          :disabled="!createUserSchema.safeParse(createUserState).success"
         >
-          {{project.name}}
-        </span>
-        <div class="ml-auto">
-          <NuxtLink
-            :to="`/${project.id}`"
-          >
-            <UButton
-              icon="i-heroicons-arrow-top-right-on-square"
-              variant="link"
-              color="blue"
-            />
-          </NuxtLink>
-          <UButton
-              v-if="editingProjectId !== project.id"
-              icon="i-heroicons-pencil-square"
-              variant="link"
-              class="rounded-full"
-              @click="editingProjectId = project.id"
-          />
-          <UButton
-              v-if="editingProjectId === project.id"
-              icon="i-heroicons-x-mark-solid"
-              variant="link"
-              color="red"
-              @click="editingProjectId = 0"
-          />
-          <UButton
-              v-if="editingProjectId === project.id"
-              icon="i-heroicons-check"
-              variant="link"
-              color="green"
-              @click="updateProject(project)"
-          />
-        </div>
-      </div>
-    </div>
-  </div>
+          Register!
+        </UButton>
+      </UForm>
+    </template>
+  </UTabs>
+</div>
 </template>

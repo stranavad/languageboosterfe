@@ -1,16 +1,37 @@
 <script setup lang="ts">
-import type {Language} from "~/types";
+import type {Language, Project, Space} from "~/types";
 import type {Ref} from "vue";
+import {definePageMeta} from "#imports";
+
+definePageMeta({
+  middleware: 'auth'
+})
 
 const route = useRoute();
 
 const projectId = computed(() => {
   return Number(route.params.projectId)
 });
+const spaceId = Number(route.params.spaceId)
 
 const {apiUrl} = useRuntimeConfig().public;
+const {data: space}: {data: Ref<Space>} = await useFetch(`/spaces/${spaceId}`, {
+  baseURL: apiUrl,
+  ...getReqHeaders()
+})
+
+const {data: project}: {data: Ref<Project>} = await useFetch(`/projects/by-id/${projectId.value}`, {
+  baseURL: apiUrl,
+  ...getReqHeaders()
+})
+
+if(project.value.spaceId !== space.value.id){
+  await navigateTo('/spaces')
+}
+
 const {data: languages, refresh}: {data: Ref<Language[]>} = await useFetch(`/languages/${projectId.value}`, {
-  baseURL: apiUrl
+  baseURL: apiUrl,
+  ...getReqHeaders(),
 });
 
 async function updateLanguage(language: Language){
@@ -19,7 +40,8 @@ async function updateLanguage(language: Language){
     baseURL: apiUrl,
     body: {
       name: language.name
-    }
+    },
+    ...getReqHeaders(),
   });
 
   await refresh();
@@ -33,7 +55,8 @@ async function createLanguage(){
     body: {
       name: newLanguageName.value,
       projectId: projectId.value
-    }
+    },
+    ...getReqHeaders(),
   })
 
   await refresh();
@@ -52,13 +75,29 @@ const newLanguageName = ref("");
   >
     <div class="flex items-center mb-10 justify-between w-full">
       <div class="flex items-center">
-        <h2 class="text-3xl font-semibold mr-5">Languages</h2>
+        <h2 class="text-3xl font-semibold mr-5 flex items-center">
+          <span class="text-xl text-slate-300 mr-2">
+            <NuxtLink
+              :to="`/spaces/${space.id}`"
+            >
+              {{space.name}}
+            </NuxtLink>
+            |
+            <NuxtLink
+              :to="`/spaces/${space.id}/project/${project.id}`"
+            >
+              {{project.name}}
+            </NuxtLink>
+            |
+          </span>
+          Languages
+        </h2>
         <NuxtLink
-          :to="`/${projectId}`"
+            :to="`/spaces/${spaceId}/project/${projectId}`"
         >
           <UButton
-            size="xs"
-            variant="outline"
+              size="xs"
+              variant="outline"
           >
             Mutations
           </UButton>
@@ -66,10 +105,10 @@ const newLanguageName = ref("");
       </div>
 
       <UButton
-        icon="i-heroicons-plus"
-        variant="outline"
-        size="xs"
-        @click="addingLanguage = !addingLanguage"
+          icon="i-heroicons-plus"
+          variant="outline"
+          size="xs"
+          @click="addingLanguage = !addingLanguage"
       >
         Language
       </UButton>
@@ -108,31 +147,31 @@ const newLanguageName = ref("");
             class="border-b border-b-green-500"
         />
         <span
-          v-if="editingLanguageId !== language.id"
+            v-if="editingLanguageId !== language.id"
         >
           {{language.name}}
         </span>
         <div class="ml-auto">
           <UButton
-            v-if="editingLanguageId !== language.id"
-            icon="i-heroicons-pencil-square"
-            variant="link"
-            class="rounded-full"
-            @click="editingLanguageId = language.id"
+              v-if="editingLanguageId !== language.id"
+              icon="i-heroicons-pencil-square"
+              variant="link"
+              class="rounded-full"
+              @click="editingLanguageId = language.id"
           />
           <UButton
-            v-if="editingLanguageId === language.id"
-            icon="i-heroicons-x-mark-solid"
-            variant="link"
-            color="red"
-            @click="editingLanguageId = 0"
+              v-if="editingLanguageId === language.id"
+              icon="i-heroicons-x-mark-solid"
+              variant="link"
+              color="red"
+              @click="editingLanguageId = 0"
           />
           <UButton
-            v-if="editingLanguageId === language.id"
-            icon="i-heroicons-check"
-            variant="link"
-            color="green"
-            @click="updateLanguage(language)"
+              v-if="editingLanguageId === language.id"
+              icon="i-heroicons-check"
+              variant="link"
+              color="green"
+              @click="updateLanguage(language)"
           />
         </div>
       </div>

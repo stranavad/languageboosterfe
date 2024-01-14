@@ -1,7 +1,11 @@
 <script setup lang="ts">
-
 import type {Ref} from "vue";
-import type {Language, Mutation} from "~/types";
+import type {Language, Mutation, Project, Space} from "~/types";
+import {definePageMeta} from "#imports";
+
+definePageMeta({
+  middleware: 'auth'
+})
 
 const route = useRoute();
 
@@ -9,13 +13,32 @@ const projectId = computed(() => {
   return Number(route.params.projectId)
 });
 
+const spaceId = Number(route.params.spaceId);
+
 const {apiUrl} = useRuntimeConfig().public;
+const {data: space}: {data: Ref<Space>} = await useFetch(`/spaces/${spaceId}`, {
+  baseURL: apiUrl,
+  ...getReqHeaders()
+})
+
+const {data: project}: {data: Ref<Project>} = await useFetch(`/projects/by-id/${projectId.value}`, {
+  baseURL: apiUrl,
+  ...getReqHeaders()
+})
+
+if(project.value.spaceId !== space.value.id){
+  await navigateTo('/spaces')
+}
+
 const {data: mutations, refresh}: {data: Ref<Mutation[]>} = await useFetch(`/mutations/project/${projectId.value}`, {
   baseURL: apiUrl,
+  ...getReqHeaders(),
 })
 const {data: languages}: {data: Ref<Language[]>} = await useFetch(`/languages/${projectId.value}`, {
-  baseURL: apiUrl
+  baseURL: apiUrl,
+  ...getReqHeaders(),
 })
+
 
 const columns = computed(() => ([
   {
@@ -75,9 +98,25 @@ const values = computed(() => mutations.value.map(m => ({
   <div class="max-w-6xl mx-auto">
     <div class="flex justify-between mb-5">
       <div class="flex items-center">
-        <h2 class="text-3xl font-semibold mr-5">Mutations</h2>
+        <h2 class="text-3xl font-semibold mr-5 flex items-center">
+          <span class="text-xl text-slate-300 mr-2">
+            <NuxtLink
+                :to="`/spaces/${space.id}`"
+            >
+              {{space.name}}
+            </NuxtLink>
+            |
+            <NuxtLink
+                :to="`/spaces/${space.id}/project/${project.id}`"
+            >
+              {{project.name}}
+            </NuxtLink>
+            |
+          </span>
+          Mutations
+        </h2>
         <NuxtLink
-            :to="`/${projectId}/languages`"
+            :to="`/spaces/${spaceId}/project/${projectId}/languages`"
         >
           <UButton
               size="xs"
@@ -88,20 +127,20 @@ const values = computed(() => mutations.value.map(m => ({
         </NuxtLink>
       </div>
       <UButton
-        @click="editingMutationId = 0; openedMutationModal = true"
+          @click="editingMutationId = 0; openedMutationModal = true"
       >
         Create new
       </UButton>
     </div>
     <div class="border rounded-md border-slate-700">
       <MutationModal
-        v-model="openedMutationModal"
-        :project-id="projectId"
-        :mutation-id="editingMutationId"
+          v-model="openedMutationModal"
+          :project-id="projectId"
+          :mutation-id="editingMutationId"
       />
       <UTable
-        :rows="values"
-        :columns="columns"
+          :rows="values"
+          :columns="columns"
       >
         <template #actions-data="{ row }">
           <UDropdown :items="items(row)">

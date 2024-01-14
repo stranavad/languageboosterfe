@@ -51,7 +51,8 @@ async function updateMutation(){
     method: 'PUT',
     body: {
       key: mutationData.value['key']
-    }
+    },
+    ...getReqHeaders(),
   });
   mutation.value.key = response.key;
 }
@@ -72,7 +73,8 @@ async function updateMutationValue(languageId: number){
         value,
         languageId,
         mutationId: mutation.value.id
-      }
+      },
+      ...getReqHeaders(),
     });
     mutation.value.values.push(newMutationValue)
     return;
@@ -83,7 +85,8 @@ async function updateMutationValue(languageId: number){
     method: 'PUT',
     body: {
       value,
-    }
+    },
+    ...getReqHeaders(),
   });
 
   const index = mutation.value.values.findIndex(mv => mv.languageId === languageId);
@@ -108,7 +111,8 @@ async function createMutation(){
   await $fetch('/mutations', {
     baseURL: apiUrl,
     method: 'POST',
-    body: data
+    body: data,
+    ...getReqHeaders(),
   })
 
   open.value = false;
@@ -118,14 +122,16 @@ async function init(){
   mutation.value = defaultMutation;
   mutationData.value = {};
   languages.value = await $fetch<Language[]>(`/languages/${props.projectId}`, {
-    baseURL: apiUrl
+    baseURL: apiUrl,
+    ...getReqHeaders()
   });
 
   let found: Mutation | null = null;
 
   if(props.mutationId){
     found = await $fetch<Mutation | null>(`/mutations/${props.mutationId}`, {
-      baseURL: apiUrl
+      baseURL: apiUrl,
+      ...getReqHeaders()
     });
   }
 
