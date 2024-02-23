@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import type {Language, Mutation, MutationValue} from "~/types";
+import {statuses } from '~/utils/statuses';
 
 const {apiUrl} = useRuntimeConfig().public;
-const emit = defineEmits<{
-  reload: []
-}>();
 const open = defineModel<boolean>();
 const props = defineProps<{
   mutationId: number;
@@ -22,7 +20,7 @@ const languages = ref<Language[]>([]);
 const defaultMutation: Mutation = {
   id: 0,
   key: "",
-  status: "",
+  status: statuses[0],
   values: []
 }
 const mutation = ref<Mutation>(defaultMutation);
@@ -35,7 +33,7 @@ function checkFieldChanged(languageId: number | string){
   }
 
   if(languageId === 'key'){
-    return mutationData.value['key'] !== mutation.value.key;
+    return mutationData.value['key'] !== mutation.value.key || mutationData.value['status'] !== mutation.value.status;
   }
 
   return mutationData.value[languageId] !== mutation.value.values.find(mv => mv.languageId === languageId)?.value
@@ -50,10 +48,12 @@ async function updateMutation(){
     baseURL: apiUrl,
     method: 'PUT',
     body: {
-      key: mutationData.value['key']
+      key: mutationData.value['key'],
+      status: mutationData.value['status']
     },
     ...getReqHeaders(),
   });
+  mutation.value.status = response.status;
   mutation.value.key = response.key;
 }
 
@@ -119,6 +119,7 @@ async function createMutation(){
 }
 
 async function init(){
+  console.log('init', props);
   mutation.value = defaultMutation;
   mutationData.value = {};
   languages.value = await $fetch<Language[]>(`/languages/${props.projectId}`, {
@@ -129,6 +130,7 @@ async function init(){
   let found: Mutation | null = null;
 
   if(props.mutationId){
+    console.log('have mutation ID');
     found = await $fetch<Mutation | null>(`/mutations/${props.mutationId}`, {
       baseURL: apiUrl,
       ...getReqHeaders()
@@ -138,6 +140,7 @@ async function init(){
 
   if(!found){
     mode.value = 'create'
+    mutationData.value['status'] = statuses[0]
     mutationData.value['key'] = "";
     languages.value.forEach(language => {
       mutationData.value[language.id] = ""
@@ -145,6 +148,7 @@ async function init(){
   } else {
     mode.value = 'edit'
     mutation.value = found
+    mutationData.value['status'] = mutation.value.status
     mutationData.value['key'] = mutation.value.key;
     languages.value.forEach(language => {
       mutationData.value[language.id] = mutation.value.values.find(mv => mv.languageId === language.id)?.value || ""
@@ -167,17 +171,22 @@ async function init(){
           <UInput
             v-model="mutationData['key']"
           />
-          <UButton
-              v-if="checkFieldChanged('key')"
-              class="mt-2"
-              size="xs"
-              block
-              variant="outline"
-              @click="updateMutation()"
-          >
-            Save
-          </UButton>
         </UFormGroup>
+        <UFormGroup
+          label="Status"
+        >
+          <USelectMenu v-model="mutationData['status']" :options="statuses" class="mt-2"/>
+        </UFormGroup>
+        <UButton
+            v-if="checkFieldChanged('key')"
+            class="mt-2"
+            size="xs"
+            block
+            variant="outline"
+            @click="updateMutation()"
+        >
+          Save
+        </UButton>
         <UFormGroup
           v-for="language in languages"
           :label="language.name"

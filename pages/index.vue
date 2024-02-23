@@ -93,6 +93,7 @@ const tabItems = [
         <UFormGroup label="Password" name="password">
           <UInput
               v-model="loginUserState.password"
+              type="password"
           />
         </UFormGroup>
         <UButton
@@ -124,6 +125,7 @@ const tabItems = [
         <UFormGroup label="Password" name="password">
           <UInput
               v-model="createUserState.password"
+              type="password"
           />
         </UFormGroup>
         <UButton
