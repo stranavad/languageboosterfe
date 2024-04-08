@@ -5,10 +5,12 @@
         class="text-3xl font-semibold uppercase cursor-pointer"
         to="/spaces"
       >
-        Language Booooster
+        Language Boo🐮ooster 
       </NuxtLink>
     </div>
     <NuxtPage/>
+    <UNotifications />
+  
   </div>
 </template>
 <script lang="ts" setup>

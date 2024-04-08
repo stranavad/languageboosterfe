@@ -17,6 +17,12 @@ watch(() => open.value, async (newOpened) => {
 
 const mode = ref<'create' | 'edit'>('edit');
 const languages = ref<Language[]>([]);
+const keepOpen = useCookie(
+  'keepOpen',
+  {
+    default: () => true,
+  }
+)
 const defaultMutation: Mutation = {
   id: 0,
   key: "",
@@ -26,6 +32,17 @@ const defaultMutation: Mutation = {
 const mutation = ref<Mutation>(defaultMutation);
 
 const mutationData = ref<{[k: number | string]: string}>({});
+
+
+const allFilled = computed(() => {
+  return Object.keys(mutationData.value).filter(key => isNumeric(key)).every(key => mutationData.value[key] !== "")
+})
+watch(allFilled, (value) => {
+  // if every numeric key is not empty then switch status to final one
+  if(mutationData.value.status){
+    mutationData.value.status =  value ? statuses[1] : statuses[0];
+  }
+}, {deep: true})
 
 function checkFieldChanged(languageId: number | string){
   if(mode.value === 'create'){
@@ -93,6 +110,8 @@ async function updateMutationValue(languageId: number){
   mutation.value.values[index] = updated;
 }
 
+const loading = ref(false);
+const toast = useToast();
 async function createMutation(){
   const {key, ...valuesData} = mutationData.value;
   const data = {
@@ -108,18 +127,48 @@ async function createMutation(){
     })
   }
 
-  await $fetch('/mutations', {
+  loading.value = true;
+  try {
+    await $fetch('/mutations', {
     baseURL: apiUrl,
     method: 'POST',
     body: data,
     ...getReqHeaders(),
   })
+  toast.add({
+    title: 'Mutation created',
+  })
+  loading.value = false;
+  open.value = keepOpen.value;
+  // save mutation key to cliipboard
+  if(navigator?.clipboard){
+    navigator.clipboard.writeText(key);
+  }
 
-  open.value = false;
+  // clear mutatations language data
+
+  Object.keys(mutationData.value).forEach(key => {
+
+    if(isNumeric(key)){
+      mutationData.value[key] = "";
+    }
+  })
+  
+  } catch (error) {
+    loading.value = false;
+    toast.add({
+      title: 'Something went wrong',
+      color: 'red'
+    })
+  }
+
+
+
+
 }
 
 async function init(){
-  console.log('init', props);
+
   mutation.value = defaultMutation;
   mutationData.value = {};
   languages.value = await $fetch<Language[]>(`/languages/${props.projectId}`, {
@@ -130,7 +179,6 @@ async function init(){
   let found: Mutation | null = null;
 
   if(props.mutationId){
-    console.log('have mutation ID');
     found = await $fetch<Mutation | null>(`/mutations/${props.mutationId}`, {
       baseURL: apiUrl,
       ...getReqHeaders()
@@ -155,6 +203,14 @@ async function init(){
     })
   }
 }
+
+function isNumeric(str: any) {
+  if (typeof str != "string") return false // we only process strings!  
+  // @ts-ignore
+  return !isNaN(str) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
+         !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
+}
+
 </script>
 <template>
   <div>
@@ -205,13 +261,22 @@ async function init(){
             Save
           </UButton>
         </UFormGroup>
+        <div v-if="mode === 'create'" class="flex flex-col  gap-2 w-full">
+        <UTooltip class="self-start" text="Keep modal open after saving mutation" >
+          <UToggle
+            v-model="keepOpen"
+            class="mt-2"
+          />
+        </UTooltip> 
         <UButton
-            v-if="mode === 'create'"
-          block
+
+            block          
+          :loading="loading"
           @click="createMutation()"
         >
           Create new mutation
         </UButton>
+      </div>
       </div>
     </UModal>
   </div>
